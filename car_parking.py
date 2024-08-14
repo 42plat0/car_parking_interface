@@ -1,8 +1,8 @@
 import sys
 import os
-import random
+import re
 
-from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMainWindow, QVBoxLayout, QLabel, QLineEdit
+from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMainWindow, QVBoxLayout, QLabel, QLineEdit, QMessageBox
 from PyQt5.QtGui import QKeyEvent, QPainter, QPixmap, QPen
 from PyQt5.QtCore import Qt, QRect
 
@@ -16,6 +16,12 @@ KEYS = {
     "left": 65
 }
 
+class Validation():
+    
+    @staticmethod
+    def license_plates(plate):
+        valid_plate_pattern = r"^[a-z]{3}-[0-9]{3}$"
+        return bool(re.fullmatch(valid_plate_pattern, plate, re.IGNORECASE))
 
 class ParkingLot(QMainWindow):
     def __init__(self):
@@ -36,7 +42,7 @@ class ParkingLot(QMainWindow):
         space_y = 0
         self.space_coordinates = [(x, space_y) for x in range(0, self.background_image.width(), self.car_image.width())]
 
-        self.parking_lot = [{"id": i+1, "plate_num": None, "available": True, "space_x_y": self.space_coordinates[i]}
+        self.parking_lot = [{"id": i+1, "plate_num": None, "available": True, "space_x_y": self.space_coordinates[i], "drawn_obj": None}
                 for i in range(self.parking_lot_size)]
 
         self.car_x = 0
@@ -44,34 +50,55 @@ class ParkingLot(QMainWindow):
 
         self.cars = []
 
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.drawPixmap(self.rect(), self.background_image)
 
         try:
-            for car in self.cars:
-                painter.drawPixmap(car, self.car_image)
+            for space in self.parking_lot:
+                if space["drawn_obj"] is not None:
+                    painter.drawPixmap(space["drawn_obj"], self.car_image)
         except Exception:
             pass
 
-    def place_car(self):
+
+    def place_car(self, plate_num):
+        
+        for car in self.parking_lot:
+            if plate_num == car["plate_num"]:
+                print("Masina siais numeriais jau pastatyta")
+                return
 
         for i in range(len(self.parking_lot)):
             rect = QRect(*self.parking_lot[i]["space_x_y"], self.car_image.width(),self.car_image.height())
             if self.parking_lot[i]["available"] is True:
                 self.car_x, self.car_y = self.parking_lot[i]["space_x_y"]
                 self.parking_lot[i]["available"] = False
+                self.parking_lot[i]["plate_num"] = plate_num
+                self.parking_lot[i]["drawn_obj"] = rect
                 break
         else:
             print("Nebera vietos")
             return 
-                
-        self.cars.append(rect)
-        
-        print(self.cars)
+                        
+        self.update()
+
+
+    def release_car(self, plate_num):
+
+        for i in range(len(self.parking_lot)):
+
+            if self.parking_lot[i]["available"] is False and self.parking_lot[i]["plate_num"] == plate_num:
+                self.parking_lot[i]["available"] = True
+                self.parking_lot[i]["plate_num"] = None
+                self.parking_lot[i]["drawn_obj"] = None
+                break
+        else:
+            print("Masinos siais numeriais nera")
+            return 
 
         self.update()
-        pass
 
 class ManagementWindow(QMainWindow):
     def __init__(self):
@@ -86,16 +113,18 @@ class ManagementWindow(QMainWindow):
 
         vbox = QVBoxLayout(central_w)
 
-        self.park_in_label = QLabel(self)
-        self.park_in_label.setText("Įvažiavimas:")
+        self.park_car_label = QLabel(self)
+        self.park_car_label.setText("Įvažiavimas:")
         
         self.car_nums_label_1 = QLabel(self)
         self.car_nums_label_1.setText("Mašinos numeriai:")
         
-        self.plate_in = QLineEdit(self)
-        self.park_btn = QPushButton("Priimti", self)
-        self.plate_in.setPlaceholderText("XXX-000")
-        self.park_btn.clicked.connect(self.accept_car)
+        self.park_car = QLineEdit(self)
+        self.park_car.setPlaceholderText("XXX-000")
+        
+        self.park_car_btn = QPushButton("Priimti", self)
+        self.park_car_btn.clicked.connect(self.add_car)
+
 
         self.leave_label = QLabel(self)
         self.leave_label.setText("Išvažiavimas:")
@@ -103,26 +132,44 @@ class ManagementWindow(QMainWindow):
         self.car_nums_label_2 = QLabel(self)
         self.car_nums_label_2.setText("Mašinos numeriai:")
         
-        self.plate_out = QLineEdit(self)
-        self.leave_btn = QPushButton("Išleisti", self)
-        self.plate_out.setPlaceholderText("XXX-000")
+        self.remove_car = QLineEdit(self)
+        self.remove_car.setPlaceholderText("XXX-000")
+        
+        self.release_car_btn = QPushButton("Išleisti", self)
+        self.release_car_btn.clicked.connect(self.del_car)
 
         vbox.addWidget(self.car_nums_label_1)
-        vbox.addWidget(self.park_in_label)
-        vbox.addWidget(self.plate_in)
-        vbox.addWidget(self.park_btn)
+        vbox.addWidget(self.park_car_label)
+        vbox.addWidget(self.park_car)
+        vbox.addWidget(self.park_car_btn)
 
         vbox.addWidget(self.car_nums_label_2)
         vbox.addWidget(self.leave_label)
-        vbox.addWidget(self.plate_out)
-        vbox.addWidget(self.leave_btn)
+        vbox.addWidget(self.remove_car)
+        vbox.addWidget(self.release_car_btn)
+        
+        self.open_parking_window()
 
     def open_parking_window(self):
         self.parking_window.show()
     
-    def accept_car(self):
-        self.open_parking_window()
-        self.parking_window.place_car()
+    def add_car(self):
+        if Validation.license_plates(self.park_car.text()):
+            plate_num = self.park_car.text().upper()
+            self.parking_window.place_car(plate_num=plate_num)
+            self.park_car.clear()
+        else:
+            mbox = QMessageBox(self, text="Neteisingi numeriai")
+            mbox.exec_()
+    
+    def del_car(self):
+        if Validation.license_plates(self.remove_car.text()):
+            plate_num = self.remove_car.text().upper()
+            self.parking_window.release_car(plate_num=plate_num)
+            self.remove_car.clear()
+        else:
+            mbox = QMessageBox(self, text="Neteisingi numeriai")
+            mbox.exec_()
 
 def main():
     app = QApplication(sys.argv)
