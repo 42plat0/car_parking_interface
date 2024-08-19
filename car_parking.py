@@ -3,8 +3,8 @@ import os
 import re
 
 from PyQt5.QtWidgets import QApplication, QWidget, QPushButton, QMainWindow, QVBoxLayout, QLabel, QLineEdit, QMessageBox
-from PyQt5.QtGui import QKeyEvent, QPainter, QPixmap, QPen
-from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtGui import QPainter, QPixmap
+from PyQt5.QtCore import QRect
 
 WORKING_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -93,7 +93,7 @@ class ManagementWindow(QMainWindow):
         super().__init__()
         self.parking_window = ParkingLot()
 
-        self.setWindowTitle("Login")
+        self.setWindowTitle("Parking")
 
         central_w = QWidget()
         self.setCentralWidget(central_w)
